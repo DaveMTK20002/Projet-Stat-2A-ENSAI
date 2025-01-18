@@ -1,0 +1,309 @@
+---
+title: "Travail preleminaire"
+author: "Groupe 21"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Importation des données
+
+```{r}
+base <- readRDS(gzfile("base_REPRO_ENSAI_VarX_VarY_Respi2.RData"))
+```
+
+
+# Etape 1 : vérification des données
+
+## Type de variables
+
+```{r}
+# liste des types de variables
+unique(sapply(base, class))
+```
+
+```{r}
+# liste des variables par types
+
+# type de chaque colonne
+types <- sapply(base, class)
+
+# noms des colonnes par type
+variables_par_type <- split(names(types), types)
+
+# variables par type
+variables_par_type
+
+```
+
+On voit bien qu'hormis l’identifiant (CODE_ELEVAGE = character), toutes les variabls sont de type Factor ou Numeric
+
+
+# Données manquantes
+
+## Pourcentage de données manquantes par variables 
+
+```{r}
+
+# Calcul du pourcentage de données manquantes par variable
+pourcentage_manquants <- round(colSums(is.na(base)) / nrow(base) * 100,0)
+
+# Transformons en dataframe pour une présentation claire
+var_na_percent <- data.frame(
+  variable = names(pourcentage_manquants),
+  pourcentage = pourcentage_manquants
+)
+
+# Rangeons par ordre décroissant des pourcentages
+var_na_percent <- var_na_percent[order(-var_na_percent$pourcentage), ]
+```
+
+
+
+```{r}
+# Visualiser les données manquantes
+library(visdat)
+
+# Heatmap des données manquantes
+vis_miss(base)
+
+```
+
+
+## Variables avec plus de 15 % de NA
+
+```{r}
+# variables avec >15% de données manquantes et leurs pourcentages
+var_na_percent_plus_15 <- var_na_percent[var_na_percent$pourcentage > 15,]
+
+# Résultat
+var_na_percent_plus_15
+
+```
+
+On va continuer avec les variables ayant moins de 15 % de NA
+
+```{r}
+# variables avec <=15% de données manquantes
+variables_conservees <- var_na_percent$variable[var_na_percent$pourcentage <= 15]
+
+# sélectionner uniquement ces variables
+base2 <- base[, variables_conservees]
+
+# Dimensions de la nouvelle base
+dim(base2)  
+
+```
+
+# Vérification des modalités
+
+```{r}
+
+# Tableau récapitulatif
+recap_modalites <- data.frame(
+  Variable = character(),
+  Nb_Modalites = integer(),
+  Frequence_Max = numeric(),
+  Frequence_Min = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Boucle pour analyser chaque variable de type factor
+for (var in names(base2)) {
+  # Tableau de fréquences pour la variable
+  freq_table <- table(base2[[var]])
+  
+  # Ajouter les informations au tableau récapitulatif
+  recap_modalites <- rbind(
+    recap_modalites,
+    data.frame(
+      Variable = var,
+      Nb_Modalites = length(freq_table),
+      Frequence_Max = round(max(freq_table) / sum(freq_table) * 100, 0), # fréquence max des modalités en %
+      Frequence_Min = round(min(freq_table) / sum(freq_table) * 100, 0)  # fréquence min des modalités en %
+    )
+  )
+}
+
+# Trier le tableau par nombre de modalités
+recap_modalites <- recap_modalites[order(-recap_modalites$Frequence_Max), ]
+
+```
+
+## Variables déséquilibrées (avec 1 modalité >= 85% répondants)
+
+```{r}
+# variables ayant une modalité avec une fréquence >= 85%
+variables_desequilibrees <- recap_modalites$Variable[recap_modalites$Frequence_Max >= 85]
+
+variables_desequilibrees
+
+```
+
+Nous avons donc `r length(variables_desequilibrees)` variables avec avec 1 modalité >= 85% répondants.
+
+Nous allons poursuivre sans elles.
+
+```{r}
+# Créons base3 en excluant ces variables
+base3 <- base2[, !(names(base2) %in% variables_desequilibrees)]
+
+dim(base3)
+```
+
+
+## Modalité avec <=15% de répondants
+
+
+```{r}
+# On va restreindre le travail aux variables de types facteur
+base4 <- Filter(is.factor, base3)
+
+# Tableau récapitulatif
+recap_modalite_2 <- data.frame(
+  Variable = character(),
+  Nb_Modalites = integer(),
+  Frequence_Max = numeric(),
+  Frequence_Min = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Boucle pour analyser chaque variable de type factor
+for (var in names(base4)) {
+  # Tableau de fréquences pour la variable
+  freq_table <- table(base4[[var]])
+  
+  # Ajouter les informations au tableau récapitulatif
+  recap_modalite_2 <- rbind(
+    recap_modalite_2,
+    data.frame(
+      Variable = var,
+      Nb_Modalites = length(freq_table),
+      Frequence_Max = round(max(freq_table) / sum(freq_table) * 100, 0), # fréquence max des modalités en %
+      Frequence_Min = round(min(freq_table) / sum(freq_table) * 100, 0)  # fréquence min des modalités en %
+    )
+  )
+}
+
+# Trier le tableau par nombre de modalités
+recap_modalite_2 <- recap_modalite_2[order(-recap_modalite_2$Frequence_Max), ]
+
+# Ajouter une colonne pour indiquer si une modalité ≤ 15% existe
+recap_modalite_2$Existence_Modalite_Inf_15 <- recap_modalite_2$Frequence_Min <= 15
+
+table(recap_modalite_2$Existence_Modalite_Inf_15)
+```
+
+Il y a `r min(table(recap_modalite_2$Existence_Modalite_Inf_15))` variables avec des modalités inférieures à 15 %.
+
+On va examiner ces variables 
+
+```{r}
+# Variables avec une modalité ≤ 15%
+variables_modalites_inf_15 <- recap_modalite_2[recap_modalite_2$Existence_Modalite_Inf_15,]
+
+variables_modalites_inf_15
+```
+On peut voir que ces variables on 3, 4 ou 5 modalités (donc >2 modalités). Il y a donc nécessité de regroupement des modalités.
+
+
+# Etape 2 : Etude du lien entre les variables décrivant les signes cliniques respiratoires
+
+```{r}
+##Etude du lien entre les deux variables explicatives
+plot(MAT_TxPo~MAT_EterPo ,data=base3)
+
+```
+
+
+## Test de Khi 2
+
+```{r}
+## Test du chi-2 pour évaluer le lien
+
+table_deux=table(base3$MAT_TxPo,base3$MAT_EterPo)##condition du test: chaque case>=5 observations
+
+chisq.test(x=base3$MAT_TxPo,y=base3$MAT_EterPo)
+
+```
+On ne rejette  au seuil de 2% l'hypothèse d'indépendance entre les 2 variables, elles ne sont donc pas indépendantes
+
+Cette liaison est par ailleurs quantifiée par un V de Cramer de l'order de `r result_test$cramer`
+
+
+```{r}
+library(vcd)
+result_test = assocstats(table_deux)##coeffcients V Cramer
+```
+
+
+## Clustering
+
+```{r}
+##K-modes
+library(klaR)
+
+data <- data.frame(
+  v1=base3$MAT_TxPo,
+  v2=base3$MAT_EterPo
+)
+
+# Clustering K-modes
+cost_values=c()
+for (K in 1:4) {
+  model <- kmodes(data, modes = K)
+  cost_values <- c(cost_values, sum(model$withindiff))
+}
+
+```
+
+```{r}
+# Tracer le coût en fonction du nombre de clusters
+plot(1:4, cost_values, type = "b", pch = 19, col = "blue",
+     xlab = "Nombre de clusters", ylab = "Coût total",
+     main = "Méthode de l'épaule pour k-modes")
+result <- kmodes(data, modes = 2)
+
+# Nouvelle variable basée sur les clusters
+data$cluster <- as.factor(result$cluster)
+
+```
+### Interprétation 
+
+
+```{r}
+library(ggplot2)
+# Création du graphique
+ggplot(data, aes(x = cluster, fill = v1)) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Répartition de V1 par Cluster",
+    x = "Cluster",
+    y = "Proportion"
+  ) +
+  theme_minimal()
+```
+
+
+
+```{r}
+# Diagramme pour V2
+ggplot(data, aes(x = cluster, fill = v2)) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Répartition de V2 par Cluster",
+    x = "Cluster",
+    y = "Proportion"
+  ) +
+ theme_minimal()
+```
+
+On remarque que dans le premier cluster il y a mojaritairement les individus ayant des 0 pour les deux variables (MAT_TxPo et MAT_EterPo) et dans le second cluster plus de 1. 
+On peut alors conclure que le cluster 1 representent ceux n'ayant aucun problèmes respiratoires (pas de toux ni éternuement) et le cluster 2, ceux ayant au moins la toux ou l'éternuement.
+
+
+
