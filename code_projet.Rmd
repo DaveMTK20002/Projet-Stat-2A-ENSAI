@@ -211,6 +211,23 @@ variables_modalites_inf_15
 On peut voir que ces variables on 3, 4 ou 5 modalités (donc >2 modalités). Il y a donc nécessité de regroupement des modalités.
 
 
+```{r}
+# Examinons de plus près les distributions de chacune pour regroupement éventuel
+distribution_variables_modalites_inf_15=lapply(base4[,variables_modalites_inf_15$Variable], function(x) round(prop.table(table(x))*100,2))
+
+distribution_variables_modalites_inf_15
+```
+
+```{r}
+# Identification des variables numériques avec faible variabilité
+base_numeric <- Filter(is.numeric, base3)
+cv_variables=sapply(base_numeric, function(x) sd(x,na.rm=T)*100/mean(x, na.rm=T))
+
+resume=data.frame(Variable=names(base_numeric),CV=cv_variables)
+resume_tried=resume[order(-resume$CV),]
+```
+
+
 # Etape 2 : Etude du lien entre les variables décrivant les signes cliniques respiratoires
 
 ```{r}
@@ -230,9 +247,8 @@ table_deux=table(base3$MAT_TxPo,base3$MAT_EterPo)##condition du test: chaque cas
 chisq.test(x=base3$MAT_TxPo,y=base3$MAT_EterPo)
 
 ```
-On ne rejette  au seuil de 2% l'hypothèse d'indépendance entre les 2 variables, elles ne sont donc pas indépendantes
+On rejette  au seuil de 2% l'hypothèse d'indépendance entre les 2 variables, elles ne sont donc pas indépendantes
 
-Cette liaison est par ailleurs quantifiée par un V de Cramer de l'order de `r result_test$cramer`
 
 
 ```{r}
@@ -240,6 +256,7 @@ library(vcd)
 result_test = assocstats(table_deux)##coeffcients V Cramer
 ```
 
+Cette liaison est par ailleurs quantifiée par un V de Cramer de l'order de `r noquote(paste(round(result_test$cramer*100,2),"%"))`
 
 ## Clustering
 
@@ -305,5 +322,118 @@ ggplot(data, aes(x = cluster, fill = v2)) +
 On remarque que dans le premier cluster il y a mojaritairement les individus ayant des 0 pour les deux variables (MAT_TxPo et MAT_EterPo) et dans le second cluster plus de 1. 
 On peut alors conclure que le cluster 1 representent ceux n'ayant aucun problèmes respiratoires (pas de toux ni éternuement) et le cluster 2, ceux ayant au moins la toux ou l'éternuement.
 
+##Réalisation d'une ACM avec les 2 variables à expliquer
+
+```{r}
+##On se limite aux deux variables à expliquer
+data_explicatives <- data.frame(
+  'MAT_TxPo'=base3$MAT_TxPo,
+  'MAT_EterPo'=base3$MAT_EterPo
+)
+
+library(FactoMineR)
+acm_result <- MCA(data_explicatives, graph = TRUE)
+summary(acm_result)
+```
+
+##Contributions des variables et coordonnées des individus
+
+```{r}
+# Contributions des variables aux axes
+print(acm_result$var$contrib)
+
+# Coordonnées des individus
+acm_result$ind$coord
+```
 
 
+##Visualisation des résultats
+
+```{r}
+library(factoextra)
+# Visualiser les individus
+fviz_mca_ind(acm_result, 
+             repel = TRUE, # Evite les chevauchements de labels
+             col.ind = "blue", # Couleur des individus
+             pointsize = 2) 
+
+```
+
+```{r}
+# Visualiser les modalités
+fviz_mca_var(acm_result, 
+             col.var = "red", # Couleur des catégories
+             repel = TRUE)
+```
+
+```{r}
+fviz_mca_biplot(acm_result, 
+                repel = TRUE, # Evite les chevauchements
+                col.ind = "blue", # Couleur des individus
+                col.var = "red") # Couleur des variables
+
+```
+
+###CAH sur les coordonnées des individus sur les 2 axes
+
+```{r}
+individuals_coord=as.data.frame(acm_result$ind$coord)
+
+# Matrice de distances
+distance_matrix <- dist(individuals_coord)
+print(distance_matrix)
+# Classification ascendante hiérarchique
+cah <- hclust(distance_matrix, method = "ward.D2")
+
+# Visualiser le dendrogramme
+plot(cah, main = "Dendrogramme de la CAH", xlab = "", sub = "", cex = 0.8)
+
+```
+
+
+
+```{r}
+# Couper l'arbre en 3 groupes
+k <- 2  # Nombre de groupes souhaités
+groupes <- cutree(cah, k = k)
+
+# Ajouter les groupes aux données
+data_explicatives$Cluster <- as.factor(groupes)
+##Visualisation
+library(ggplot2)
+ggplot(data_explicatives, aes(x = Cluster, fill = MAT_TxPo)) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Répartition de MAT_TxPo par Cluster",
+    x = "Cluster",
+    y = "Proportion"
+  ) +
+  theme_minimal()
+
+```
+
+
+```{r}
+library(ggplot2)
+ggplot(data_explicatives, aes(x = Cluster, fill = MAT_EterPo)) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Répartition de MAT_TxPo par Cluster",
+    x = "Cluster",
+    y = "Proportion"
+  ) +
+  theme_minimal()
+
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
