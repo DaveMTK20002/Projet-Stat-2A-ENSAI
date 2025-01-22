@@ -1,5 +1,5 @@
 ---
-title: "Travail preleminaire"
+title: "Code du projet"
 author: "Groupe 21"
 date: "`r Sys.Date()`"
 output: html_document
@@ -124,7 +124,7 @@ for (var in names(base2)) {
       Variable = var,
       Nb_Modalites = length(freq_table),
       Frequence_Max = round(max(freq_table) / sum(freq_table) * 100, 0), # fréquence max des modalités en %
-      Frequence_Min = round(min(freq_table) / sum(freq_table) * 100, 0)  # fréquence min des modalités en %
+      Frequence_Min = round(min(freq_table) / sum(freq_table) * 100, 2)  # fréquence min des modalités en %
     )
   )
 }
@@ -183,8 +183,8 @@ for (var in names(base4)) {
     data.frame(
       Variable = var,
       Nb_Modalites = length(freq_table),
-      Frequence_Max = round(max(freq_table) / sum(freq_table) * 100, 0), # fréquence max des modalités en %
-      Frequence_Min = round(min(freq_table) / sum(freq_table) * 100, 0)  # fréquence min des modalités en %
+      Frequence_Max = round(max(freq_table) / sum(freq_table) * 100, 2), # fréquence max des modalités en %
+      Frequence_Min = round(min(freq_table) / sum(freq_table) * 100, 2)  # fréquence min des modalités en %
     )
   )
 }
@@ -198,42 +198,41 @@ recap_modalite_2$Existence_Modalite_Inf_15 <- recap_modalite_2$Frequence_Min <= 
 table(recap_modalite_2$Existence_Modalite_Inf_15)
 ```
 
-Il y a `r min(table(recap_modalite_2$Existence_Modalite_Inf_15))` variables avec des modalités inférieures à 15 %.
-
-On va examiner ces variables 
-
-```{r}
-# Variables avec une modalité ≤ 15%
-variables_modalites_inf_15 <- recap_modalite_2[recap_modalite_2$Existence_Modalite_Inf_15,]
-
-variables_modalites_inf_15
-```
-On peut voir que ces variables on 3, 4 ou 5 modalités (donc >2 modalités). Il y a donc nécessité de regroupement des modalités.
-
-
-```{r}
-# Examinons de plus près les distributions de chacune pour regroupement éventuel
-distribution_variables_modalites_inf_15=lapply(base4[,variables_modalites_inf_15$Variable], function(x) round(prop.table(table(x))*100,2))
-
-distribution_variables_modalites_inf_15
-```
+Il n'y a aucune variable avec des modalités inférieures à 15 %.
+On va donc conserver pour la suite toutes ces variables catégorielles
 
 ```{r}
 # Identification des variables numériques avec faible variabilité
 base_numeric <- Filter(is.numeric, base3)
 cv_variables=sapply(base_numeric, function(x) sd(x,na.rm=T)*100/mean(x, na.rm=T))
 
-resume=data.frame(Variable=names(base_numeric),CV=cv_variables)
-resume_tried=resume[order(-resume$CV),]
+resume=data.frame(Variable=names(base_numeric),coeff_variation=cv_variables, ecart_type=sapply(base_numeric,sd))
+resume_tried=resume[order(resume$coeff_variation),]
+head(resume_tried)
 ```
 
+On constate que quasiment toutes ces variables numériques sont assez dispersées.
+On va donc les conserver pour la suite
 
 # Etape 2 : Etude du lien entre les variables décrivant les signes cliniques respiratoires
 
 ```{r}
-##Etude du lien entre les deux variables explicatives
-plot(MAT_TxPo~MAT_EterPo ,data=base3)
+##Etude du lien entre les deux variables a_expliquer
+library(ggplot2)
+table_freq <- table(base3$MAT_TxPo, base3$MAT_EterPo)
 
+# Transformer le tableau en data.frame pour ggplot
+data_plot <- as.data.frame(table_freq)
+colnames(data_plot) <- c("MAT_TxPo", "MAT_EterPo", "Freq")
+ggplot(data_plot, aes(x = MAT_EterPo, y = Freq, fill = MAT_TxPo)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(
+    title = "Relation entre MAT_EterPo et MAT_TxPo",
+    x = "MAT_EterPo",
+    y = "Fréquence",
+    fill = "MAT_TxPo"
+  ) +
+  theme_minimal()
 ```
 
 
@@ -244,10 +243,12 @@ plot(MAT_TxPo~MAT_EterPo ,data=base3)
 
 table_deux=table(base3$MAT_TxPo,base3$MAT_EterPo)##condition du test: chaque case>=5 observations
 
-chisq.test(x=base3$MAT_TxPo,y=base3$MAT_EterPo)
+result_test=chisq.test(x=base3$MAT_TxPo,y=base3$MAT_EterPo)
 
 ```
-On rejette  au seuil de 2% l'hypothèse d'indépendance entre les 2 variables, elles ne sont donc pas indépendantes
+La p-value du test est `r result_test$p.value`.
+
+On rejette donc  au seuil de 20% l'hypothèse d'indépendance entre les 2 variables, elles ne sont donc pas indépendantes
 
 
 
@@ -265,8 +266,8 @@ Cette liaison est par ailleurs quantifiée par un V de Cramer de l'order de `r n
 library(klaR)
 
 data <- data.frame(
-  v1=base3$MAT_TxPo,
-  v2=base3$MAT_EterPo
+  MAT_TxPo=base3$MAT_TxPo,
+  MAT_EterPo=base3$MAT_EterPo
 )
 
 # Clustering K-modes
@@ -295,10 +296,10 @@ data$cluster <- as.factor(result$cluster)
 ```{r}
 library(ggplot2)
 # Création du graphique
-ggplot(data, aes(x = cluster, fill = v1)) +
+ggplot(data, aes(x = cluster, fill = MAT_TxPo)) +
   geom_bar(position = "fill") +
   labs(
-    title = "Répartition de V1 par Cluster",
+    title = "Répartition de MAT_TxPo par Cluster",
     x = "Cluster",
     y = "Proportion"
   ) +
@@ -308,11 +309,11 @@ ggplot(data, aes(x = cluster, fill = v1)) +
 
 
 ```{r}
-# Diagramme pour V2
-ggplot(data, aes(x = cluster, fill = v2)) +
+# Diagramme pour MAT_EterPo
+ggplot(data, aes(x = cluster, fill = MAT_EterPo)) +
   geom_bar(position = "fill") +
   labs(
-    title = "Répartition de V2 par Cluster",
+    title = "Répartition de MAT_EterPo par Cluster",
     x = "Cluster",
     y = "Proportion"
   ) +
@@ -326,13 +327,13 @@ On peut alors conclure que le cluster 1 representent ceux n'ayant aucun problèm
 
 ```{r}
 ##On se limite aux deux variables à expliquer
-data_explicatives <- data.frame(
+data_a_expliquer <- data.frame(
   'MAT_TxPo'=base3$MAT_TxPo,
   'MAT_EterPo'=base3$MAT_EterPo
 )
 
 library(FactoMineR)
-acm_result <- MCA(data_explicatives, graph = TRUE)
+acm_result <- MCA(data_a_expliquer, graph = TRUE)
 summary(acm_result)
 ```
 
@@ -343,35 +344,7 @@ summary(acm_result)
 print(acm_result$var$contrib)
 
 # Coordonnées des individus
-acm_result$ind$coord
-```
-
-
-##Visualisation des résultats
-
-```{r}
-library(factoextra)
-# Visualiser les individus
-fviz_mca_ind(acm_result, 
-             repel = TRUE, # Evite les chevauchements de labels
-             col.ind = "blue", # Couleur des individus
-             pointsize = 2) 
-
-```
-
-```{r}
-# Visualiser les modalités
-fviz_mca_var(acm_result, 
-             col.var = "red", # Couleur des catégories
-             repel = TRUE)
-```
-
-```{r}
-fviz_mca_biplot(acm_result, 
-                repel = TRUE, # Evite les chevauchements
-                col.ind = "blue", # Couleur des individus
-                col.var = "red") # Couleur des variables
-
+coord_ind=acm_result$ind$coord
 ```
 
 ###CAH sur les coordonnées des individus sur les 2 axes
@@ -381,27 +354,37 @@ individuals_coord=as.data.frame(acm_result$ind$coord)
 
 # Matrice de distances
 distance_matrix <- dist(individuals_coord)
-print(distance_matrix)
 # Classification ascendante hiérarchique
 cah <- hclust(distance_matrix, method = "ward.D2")
-
 # Visualiser le dendrogramme
 plot(cah, main = "Dendrogramme de la CAH", xlab = "", sub = "", cex = 0.8)
 
 ```
 
+#METHODE POUR DETERMINER LE NOMBRE OPTIMAL DE CLUSTER
+
+```{r}
+library(cluster)
+library(factoextra)
+coord_ind=acm_result$ind$coord
+fviz_nbclust(coord_ind, FUN = hcut, method = "silhouette")
+fviz_nbclust(coord_ind, FUN = hcut, method = "wss")
+
+```
+
+La nombre k=3 de clusters semble optimal.
+
+## Création des clusters
+```{r}
+k <- 3
+clusters <- cutree(cah, k = k)
+data_a_expliquer$clusters <- as.factor(clusters)
+
+```
 
 
 ```{r}
-# Couper l'arbre en 3 groupes
-k <- 2  # Nombre de groupes souhaités
-groupes <- cutree(cah, k = k)
-
-# Ajouter les groupes aux données
-data_explicatives$Cluster <- as.factor(groupes)
-##Visualisation
-library(ggplot2)
-ggplot(data_explicatives, aes(x = Cluster, fill = MAT_TxPo)) +
+ggplot(data_a_expliquer, aes(x = clusters, fill = MAT_TxPo)) +
   geom_bar(position = "fill") +
   labs(
     title = "Répartition de MAT_TxPo par Cluster",
@@ -415,25 +398,69 @@ ggplot(data_explicatives, aes(x = Cluster, fill = MAT_TxPo)) +
 
 ```{r}
 library(ggplot2)
-ggplot(data_explicatives, aes(x = Cluster, fill = MAT_EterPo)) +
+ggplot(data_a_expliquer, aes(x = clusters, fill = MAT_EterPo)) +
   geom_bar(position = "fill") +
   labs(
-    title = "Répartition de MAT_TxPo par Cluster",
+    title = "Répartition de MAT_EterPo par Cluster",
     x = "Cluster",
     y = "Proportion"
   ) +
   theme_minimal()
-
 ```
 
 ```{r}
+##Visualisation des 2 variables sur les 3 clusters
+ggplot(data_a_expliquer, aes(x = MAT_TxPo, fill = MAT_EterPo)) +
+  geom_bar(position = "stack") +                    # Barres empilées
+  facet_wrap(~clusters) +                           # Facet par clusters
+  labs(
+    title = "Barplot groupé par modalité",
+    x = "MAT_TxPo",
+    y = "Effectifs",
+    fill = "MAT_EterPo"
+  ) +
+  theme_minimal()                                
 ```
 
+##Caractérisation des clusters
+
+Au regard de ce graphique, on peut dire que:
+
+* Cluster 1: recense tous les élevages présents n'ont aucun cas pour les deux maladies respiratoires
+
+* Cluster 2: compte tous les élevages présents ont des cas de toux et parmi eux, 75% présentent aussi des cas d'éternuement
+
+* Cluster 3: arbore tous les élevages présents ont des cas d'éternuement
+
+# Etape 3: Lien entre les variables retenues et la variable à expliquer
 ```{r}
+##La variable de l'étape précédente
+base3$groupe_respiratoire=as.factor(clusters)
 ```
 
+##Lien avec les variables qualitatives: test khi deux ou Fisher exact
 ```{r}
+var_qual=Filter(is.factor,base3)
+effectif_min=function(x){
+  idx <- complete.cases(var_qual$groupe_respiratoire,x)
+  tableau <- table(var_qual$groupe_respiratoire[idx],x[idx])
+  return (min(tableau));
+}
+effectif_nij_min=sapply(var_qual,effectif_min)
+chi2_test=effectif_nij_min>=5
+var_qual_test=data.frame(Variable=names(var_qual),effectif_nij_min=effectif_nij_min,chi2_test=chi2_test)
+head(var_qual_test)
 ```
+On pourra donc faire le test du chi2 pour `r sum(var_qual_test$chi2_test)` variables. Et pour le reste nous effectuerons un test de Fisher exact.
 
+Nous effectuons donc ces tests ci-dessous
 ```{r}
+test_res=function(x){
+  idx <- complete.cases(base3[[x]],base3$groupe_respiratoire)
+  test_value=ifelse(var_qual_test[x,"chi2_test"], chisq.test(base3[[x]][idx],base3$groupe_respiratoire[idx])$p.value,fisher.test(base3[[x]][idx],base3$groupe_respiratoire[idx],simulate.p.value = TRUE)$p.value)
+  return(test_value);
+}
+
+var_qual_test$pvalue=sapply(var_qual_test$Variable,test_res)
+var_qual_test[var_qual_test$pvalue<0.20,]
 ```
