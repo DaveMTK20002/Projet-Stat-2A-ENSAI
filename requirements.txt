@@ -5,5 +5,5 @@ vcd
 FactoMineR
 factoextra
 rmarkdown
-rmarkdown::render("code_projet.Rmd", output_format = "html_document")
+kmodes
 

@@ -438,29 +438,116 @@ Au regard de ce graphique, on peut dire que:
 base3$groupe_respiratoire=as.factor(clusters)
 ```
 
-##Lien avec les variables qualitatives: test khi deux ou Fisher exact
+## Lien avec les variables qualitatives: test du chi2 classic/chi2-exact
 ```{r}
 var_qual=Filter(is.factor,base3)
-effectif_min=function(x){
+effectif_theoriq_min=function(x){
   idx <- complete.cases(var_qual$groupe_respiratoire,x)
   tableau <- table(var_qual$groupe_respiratoire[idx],x[idx])
-  return (min(tableau));
+  expected <- outer(rowSums(tableau), colSums(tableau)) / sum(tableau)
+  return (min(expected));
 }
-effectif_nij_min=sapply(var_qual,effectif_min)
+effectif_nij_min=sapply(var_qual,effectif_theoriq_min)
 chi2_test=effectif_nij_min>=5
 var_qual_test=data.frame(Variable=names(var_qual),effectif_nij_min=effectif_nij_min,chi2_test=chi2_test)
-head(var_qual_test)
 ```
 On pourra donc faire le test du chi2 pour `r sum(var_qual_test$chi2_test)` variables. Et pour le reste nous effectuerons un test de Fisher exact.
 
 Nous effectuons donc ces tests ci-dessous
 ```{r}
 test_res=function(x){
-  idx <- complete.cases(base3[[x]],base3$groupe_respiratoire)
-  test_value=ifelse(var_qual_test[x,"chi2_test"], chisq.test(base3[[x]][idx],base3$groupe_respiratoire[idx])$p.value,fisher.test(base3[[x]][idx],base3$groupe_respiratoire[idx],simulate.p.value = TRUE)$p.value)
+  idx <- complete.cases(var_qual[[x]],var_qual$groupe_respiratoire)
+  test_value=ifelse(var_qual_test[x,"chi2_test"], chisq.test(var_qual[[x]][idx],var_qual$groupe_respiratoire[idx])$p.value,chisq.test(var_qual[[x]][idx],var_qual$groupe_respiratoire[idx],simulate.p.value=TRUE)$p.value)
   return(test_value);
 }
 
 var_qual_test$pvalue=sapply(var_qual_test$Variable,test_res)
-var_qual_test[var_qual_test$pvalue<0.20,]
+var_qual_sig=var_qual_test[var_qual_test$pvalue<0.20,]$Variable
+```
+Il y donc `r length(var_qual_sig)` variables significatives.
+
+Liste des variables qualitatives ayant un lien significatif avec la respiration
+
+```{r}
+dim(var_qual[,var_qual_sig])
+var_qual_sig_sans_Y=var_qual_sig[-length(var_qual_sig)] ##retirer la variable dépendante elle-mm
+```
+
+## Traitement des variables manquantes
+
+```{r}
+nbre_na=sapply(var_qual[,var_qual_sig_sans_Y],function(x) sum(is.na(x)))
+nbre_na_per_var_qual=data.frame(nbre_na=nbre_na)
+```
+
+## Traitement des données manquantes: méthodes par proportionnalité des fréquences des modalités
+
+```{r}
+#Fonction de remplacement des NA
+set.seed(123) # Figer la germe aléatoire pour la reproductibilité
+remplacer_NA_proportionnel <- function(x) {
+  # Vérifier si le vecteur contient des NA
+  if (sum(is.na(x)) == 0) {
+    return(x)  # Aucun NA à remplacer
+  }
+  # Fréquence des modalités existantes (sans NA)
+  freqs <- table(na.omit(x)) / sum(table(na.omit(x)))
+  # Nombre total de NA à remplacer
+  nb_na <- sum(is.na(x))
+
+  # Générer des valeurs pour remplacer les NA selon les proportions
+  valeurs_remplacement <- sample(names(freqs), size = nb_na, replace = TRUE, prob = freqs)
+  
+  # Remplacer les NA par ces valeurs générées
+  x[is.na(x)] <- valeurs_remplacement
+  
+  return(x)
+}
+```
+
+```{r}
+base_var_qual_sig_sansY=var_qual[,var_qual_sig_sans_Y]
+base_var_qual_sig_sansY_sans_na=var_qual[,var_qual_sig_sans_Y]
+```
+
+```{r}
+for (i in names(base_var_qual_sig_sansY)){
+  base_var_qual_sig_sansY_sans_na[[i]]=remplacer_NA_proportionnel(base_var_qual_sig_sansY[[i]])
+}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
 ```
